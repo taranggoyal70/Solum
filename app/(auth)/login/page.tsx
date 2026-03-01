@@ -8,10 +8,11 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState<string | null>(null);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -30,147 +31,128 @@ export default function LoginPage() {
     }
   }
 
+  const inputStyle: React.CSSProperties = {
+    width: "100%", padding: "11px 14px",
+    background: "var(--surface2)",
+    border: "1.5px solid var(--border2)",
+    borderRadius: "10px",
+    fontSize: "14px", color: "var(--text)",
+    outline: "none", transition: "border-color 0.15s",
+    fontFamily: "var(--font-dm-sans)",
+  };
+
   return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center px-4 relative"
-      style={{ background: "var(--bg)" }}
-    >
-      <div className="absolute top-4 right-4">
+    <div style={{
+      minHeight: "100vh", background: "var(--bg)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: "40px 16px", position: "relative",
+    }}>
+      {/* Glow */}
+      <div style={{
+        position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)",
+        width: "600px", height: "400px", pointerEvents: "none",
+        background: "radial-gradient(ellipse, rgba(212,136,10,0.07) 0%, transparent 70%)",
+      }} />
+
+      {/* Theme toggle */}
+      <div style={{ position: "absolute", top: "16px", right: "16px" }}>
         <ThemeToggle />
       </div>
 
-      {/* Ambient glow */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background:
-            "radial-gradient(ellipse at 50% 30%, rgba(212,136,10,0.06) 0%, transparent 65%)",
-        }}
-      />
+      <div style={{ width: "100%", maxWidth: "440px", position: "relative", zIndex: 1 }}>
 
-      <div className="w-full max-w-sm z-10">
         {/* Logo */}
-        <div className="text-center mb-8">
-          <Link
-            href="/"
-            className="text-3xl font-semibold tracking-wider"
-            style={{ fontFamily: "var(--font-cormorant)", color: "var(--amber)" }}
-          >
+        <div style={{ textAlign: "center", marginBottom: "32px" }}>
+          <Link href="/" style={{
+            fontFamily: "var(--font-cormorant)", fontSize: "32px",
+            fontWeight: 600, color: "var(--amber)", textDecoration: "none",
+            letterSpacing: "1px",
+          }}>
             Solum
           </Link>
-          <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
+          <p style={{ marginTop: "6px", fontSize: "14px", color: "var(--muted)" }}>
             Welcome back
           </p>
         </div>
 
         {/* Card */}
-        <div
-          className="rounded-2xl p-8 relative overflow-hidden"
-          style={{
-            background: "var(--surface)",
-            border: "1px solid var(--border2)",
-          }}
-        >
-          {/* Top accent */}
-          <div
-            className="absolute top-0 left-0 right-0 h-0.5"
-            style={{
-              background: "linear-gradient(90deg, var(--amber), transparent)",
-              opacity: 0.5,
-            }}
-          />
+        <div style={{
+          background: "var(--surface)", border: "1px solid var(--border2)",
+          borderRadius: "16px", padding: "32px", position: "relative", overflow: "hidden",
+        }}>
+          <div style={{
+            position: "absolute", top: 0, left: 0, right: 0, height: "2px",
+            background: "linear-gradient(90deg, var(--amber), transparent)",
+          }} />
 
-          <form onSubmit={handleLogin} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label
-                className="text-xs uppercase tracking-widest"
-                style={{ color: "var(--muted)" }}
-              >
-                Email
+          <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+
+            {/* Email */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <label style={{ fontSize: "13px", fontWeight: 500, color: "var(--text)" }}>
+                Email address
               </label>
               <input
-                type="email"
-                required
-                value={email}
+                type="email" required value={email} placeholder="you@example.com"
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="px-4 py-3 rounded-xl text-sm outline-none transition-all duration-200"
-                style={{
-                  background: "var(--surface2)",
-                  border: "1px solid var(--border2)",
-                  color: "var(--text)",
-                }}
-                onFocus={(e) =>
-                  (e.currentTarget.style.borderColor = "var(--amber-m)")
-                }
-                onBlur={(e) =>
-                  (e.currentTarget.style.borderColor = "var(--border2)")
-                }
+                style={inputStyle}
+                onFocus={(e) => (e.currentTarget.style.borderColor = "var(--amber)")}
+                onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border2)")}
               />
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label
-                className="text-xs uppercase tracking-widest"
-                style={{ color: "var(--muted)" }}
-              >
-                Password
-              </label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="px-4 py-3 rounded-xl text-sm outline-none transition-all duration-200"
-                style={{
-                  background: "var(--surface2)",
-                  border: "1px solid var(--border2)",
-                  color: "var(--text)",
-                }}
-                onFocus={(e) =>
-                  (e.currentTarget.style.borderColor = "var(--amber-m)")
-                }
-                onBlur={(e) =>
-                  (e.currentTarget.style.borderColor = "var(--border2)")
-                }
-              />
+            {/* Password */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <label style={{ fontSize: "13px", fontWeight: 500, color: "var(--text)" }}>
+                  Password
+                </label>
+              </div>
+              <div style={{ position: "relative" }}>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required value={password} placeholder="Enter your password"
+                  onChange={(e) => setPassword(e.target.value)}
+                  style={{ ...inputStyle, paddingRight: "56px" }}
+                  onFocus={(e) => (e.currentTarget.style.borderColor = "var(--amber)")}
+                  onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border2)")}
+                />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} style={{
+                  position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)",
+                  background: "none", border: "none", cursor: "pointer",
+                  fontSize: "12px", color: "var(--muted)", fontFamily: "var(--font-dm-sans)",
+                }}>
+                  {showPassword ? "Hide" : "Show"}
+                </button>
+              </div>
             </div>
 
             {error && (
-              <p
-                className="text-xs px-3 py-2 rounded-lg"
-                style={{
-                  background: "var(--rose-l)",
-                  border: "1px solid var(--rose-m)",
-                  color: "var(--rose)",
-                }}
-              >
-                {error}
-              </p>
+              <p style={{
+                fontSize: "13px", padding: "10px 14px", borderRadius: "8px",
+                background: "rgba(201,99,122,0.08)", border: "1px solid #c9637a",
+                color: "#c9637a",
+              }}>{error}</p>
             )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 rounded-xl font-semibold text-sm transition-all duration-200 mt-2 disabled:opacity-60 disabled:cursor-not-allowed"
-              style={{
-                background: "var(--amber)",
-                color: "var(--bg)",
-              }}
-            >
+            <button type="submit" disabled={loading} style={{
+              width: "100%", padding: "13px",
+              background: "var(--amber)", color: "var(--bg)",
+              border: "none", borderRadius: "10px",
+              fontSize: "14px", fontWeight: 600,
+              cursor: loading ? "not-allowed" : "pointer",
+              opacity: loading ? 0.6 : 1,
+              fontFamily: "var(--font-dm-sans)",
+              marginTop: "4px",
+            }}>
               {loading ? "Signing in…" : "Sign In"}
             </button>
           </form>
         </div>
 
-        <p className="text-center mt-4 text-sm" style={{ color: "var(--muted)" }}>
+        <p style={{ textAlign: "center", marginTop: "20px", fontSize: "14px", color: "var(--muted)" }}>
           Don&apos;t have an account?{" "}
-          <Link
-            href="/signup"
-            className="transition-colors duration-200"
-            style={{ color: "var(--amber)" }}
-          >
+          <Link href="/signup" style={{ color: "var(--amber)", textDecoration: "none", fontWeight: 500 }}>
             Sign up
           </Link>
         </p>
