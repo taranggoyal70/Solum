@@ -16,15 +16,34 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { conversation_id, transcript, call_duration_seconds, agent_id } = body;
+
+    // ElevenLabs wraps everything in body.data for post_call_transcription events
+    const payload = body.data ?? body;
+
+    const conversation_id = payload.conversation_id;
+    const agent_id = payload.agent_id;
+    const transcript = payload.transcript;
+    const call_duration_seconds =
+      payload.call_duration_secs ??
+      payload.call_duration_seconds ??
+      payload.metadata?.call_duration_secs ??
+      null;
 
     console.log("📝 Post-call webhook received:", {
+      type: body.type,
       conversation_id,
       agent_id,
       duration: call_duration_seconds,
     });
 
+    // Ignore non-transcription events (post_call_audio, call_initiation_failure)
+    if (body.type && body.type !== "post_call_transcription") {
+      console.log("Ignoring event type:", body.type);
+      return NextResponse.json({ received: true });
+    }
+
     if (!conversation_id) {
+      console.error("Missing conversation_id. Full payload:", JSON.stringify(body, null, 2));
       return NextResponse.json({ error: "Missing conversation_id" }, { status: 400 });
     }
 
@@ -44,9 +63,23 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // ElevenLabs transcript uses { role: "agent"|"user", message: "..." }
     const transcriptText = Array.isArray(transcript)
-      ? transcript.map((m: { role: string; content: string }) => `${m.role}: ${m.content}`).join("\n")
+      ? transcript
+          .map((m: { role: string; message?: string; content?: string }) =>
+            `${m.role === "agent" ? "Assistant" : "User"}: ${m.message ?? m.content ?? ""}`
+          )
+          .join("\n")
       : JSON.stringify(transcript);
+
+    // Convert to our DB format { role: "assistant"|"user", content: "..." }
+    const formattedTranscript = Array.isArray(transcript)
+      ? transcript.map((m: { role: string; message?: string; content?: string; time_in_call_secs?: number }) => ({
+          role: m.role === "agent" ? "assistant" : "user",
+          content: m.message ?? m.content ?? "",
+          timestamp: m.time_in_call_secs,
+        }))
+      : transcript;
 
     let memories: { content: string; category: string; importance: number }[] = [];
     
@@ -71,8 +104,9 @@ Only include facts that would be meaningful to remember for future conversations
       }
     }
 
-    let summary = "";
-    if (process.env.ANTHROPIC_API_KEY) {
+    // Use ElevenLabs summary if available, otherwise generate with Claude
+    let summary = payload.analysis?.transcript_summary ?? "";
+    if (!summary && process.env.ANTHROPIC_API_KEY) {
       try {
         const summaryResponse = await anthropic.messages.create({
           model: "claude-opus-4-5",
@@ -98,7 +132,7 @@ Only include facts that would be meaningful to remember for future conversations
       .update({
         ended_at: new Date().toISOString(),
         duration_seconds: call_duration_seconds ?? null,
-        transcript,
+        transcript: formattedTranscript,
         summary,
       })
       .eq("id", conversation.id);
