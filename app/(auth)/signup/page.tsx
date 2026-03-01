@@ -115,8 +115,6 @@ export default function SignupPage() {
         id: data.user.id,
         full_name: fullName,
         phone: phone || null,
-        dob: dob || null,
-        gender: gender || null,
       });
 
       if (profileError) {
