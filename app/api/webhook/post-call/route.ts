@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
-import Anthropic from "@anthropic-ai/sdk";
 import crypto from "crypto";
-
-const anthropic = process.env.ANTHROPIC_API_KEY
-  ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-  : null;
 
 const WEBHOOK_SECRET = process.env.ELEVENLABS_WEBHOOK_SECRET;
 
@@ -103,48 +98,23 @@ export async function POST(req: NextRequest) {
       ? transcript.map((m: { role: string; message?: string; content?: string }) => `${m.role}: ${m.message ?? m.content ?? ""}`).join("\n")
       : JSON.stringify(transcript);
 
-    let memories: { content: string; category: string; importance: number }[] = [];
-    
-    if (anthropic) {
-      try {
-        const memoryResponse = await anthropic.messages.create({
-          model: "claude-opus-4-5",
-          max_tokens: 500,
-          system: `Extract 3-5 key facts about the USER (not the AI) from this conversation transcript.
-Return ONLY a valid JSON array with no other text: [{"content": "fact about user", "category": "family|work|health|interests|other", "importance": 1-10}]
-Only include facts that would be meaningful to remember for future conversations.`,
-          messages: [{ role: "user", content: transcriptText }],
-        });
+    // Use ElevenLabs built-in transcript summary (no external LLM needed)
+    const summary = data.analysis?.transcript_summary ?? "";
 
-        const rawText = memoryResponse.content[0].type === "text" ? memoryResponse.content[0].text : "[]";
-        const jsonMatch = rawText.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          memories = JSON.parse(jsonMatch[0]);
-        }
-      } catch (err) {
-        console.error("Memory extraction failed:", err);
-      }
+    // Store the summary as a memory so the companion remembers the conversation
+    const memories: { content: string; category: string; importance: number }[] = [];
+    if (summary) {
+      memories.push({ content: summary, category: "other", importance: 5 });
     }
 
-    let summary = "";
-    if (anthropic) {
-      try {
-        const summaryResponse = await anthropic.messages.create({
-          model: "claude-opus-4-5",
-          max_tokens: 200,
-          messages: [
-            {
-              role: "user",
-              content: `Summarize this conversation in 2-3 warm, personal sentences from the perspective of an AI companion recap:\n\n${transcriptText}`,
-            },
-          ],
-        });
-        summary =
-          summaryResponse.content[0].type === "text"
-            ? summaryResponse.content[0].text
-            : "";
-      } catch (err) {
-        console.error("Summary generation failed:", err);
+    // Also extract user messages as lightweight memories
+    if (Array.isArray(transcript)) {
+      const userMessages = transcript
+        .filter((m: { role: string }) => m.role === "user")
+        .map((m: { message?: string; content?: string }) => m.message ?? m.content ?? "")
+        .filter((msg: string) => msg.length > 20);
+      for (const msg of userMessages.slice(0, 3)) {
+        memories.push({ content: `User said: ${msg}`, category: "other", importance: 3 });
       }
     }
 
@@ -159,21 +129,24 @@ Only include facts that would be meaningful to remember for future conversations
       .eq("id", conversation.id);
 
     if (memories.length > 0) {
-      await supabase.from("memories").insert(
-        memories.map((m) => ({
-          user_id: conversation.user_id,
-          agent_id: conversation.agent_id,
-          conversation_id: conversation.id,
-          content: m.content,
-          category: m.category,
-          importance: m.importance ?? 5,
-        }))
-      );
+      const memoryRows = memories.map((m) => ({
+        user_id: conversation.user_id,
+        agent_id: conversation.agent_id,
+        conversation_id: conversation.id,
+        content: m.content,
+        category: m.category,
+        importance: m.importance ?? 5,
+      }));
+      console.log("💾 Inserting memories into Supabase:", JSON.stringify(memoryRows, null, 2));
+      const { error: memError } = await supabase.from("memories").insert(memoryRows);
+      if (memError) console.error("❌ Memory insert error:", memError);
     }
 
     console.log("✅ Post-call processing complete:", {
+      conversationId: conversation.id,
       memoriesSaved: memories.length,
       hasSummary: !!summary,
+      summaryPreview: summary.slice(0, 100),
     });
 
     return NextResponse.json({ success: true, memoriesSaved: memories.length });

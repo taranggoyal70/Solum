@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
-import Anthropic from "@anthropic-ai/sdk";
-
-const anthropic = process.env.ANTHROPIC_API_KEY
-  ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-  : null;
 
 interface ElevenLabsTranscriptTurn {
   role: "agent" | "user";
@@ -78,58 +73,24 @@ export async function POST(req: NextRequest) {
       timestamp: turn.time_in_call_secs,
     }));
 
-    // Build plain text for Claude
-    const transcriptText = (transcript ?? [])
-      .map((t) => `${t.role === "agent" ? "Assistant" : "User"}: ${t.message}`)
-      .join("\n");
+    // Use ElevenLabs built-in transcript summary (no external LLM needed)
+    const summary = analysis?.transcript_summary ?? "";
 
-    // Use ElevenLabs summary if available, otherwise generate with Claude
-    let summary = analysis?.transcript_summary ?? "";
-    if (!summary && transcriptText && anthropic) {
-      try {
-        const summaryResponse = await anthropic.messages.create({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 200,
-          messages: [
-            {
-              role: "user",
-              content: `Summarize this conversation in 2-3 warm, personal sentences from the perspective of an AI companion recap:\n\n${transcriptText}`,
-            },
-          ],
-        });
-        summary = summaryResponse.content[0].type === "text"
-          ? summaryResponse.content[0].text
-          : "";
-      } catch (err) {
-        console.error("Summary generation failed:", err);
-      }
+    // Store the summary as a memory so the companion remembers the conversation
+    const memories: { content: string; category: string; importance: number }[] = [];
+    if (summary) {
+      memories.push({ content: summary, category: "other", importance: 5 });
     }
 
-    // Extract memories using Claude
-    let memories: { content: string; category: string; importance: number }[] = [];
-    if (transcriptText && anthropic) {
-      try {
-        const memoryResponse = await anthropic.messages.create({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 500,
-          system: `Extract 3-5 key facts about the USER (not the AI) from this conversation transcript.
-Return ONLY a valid JSON array with no other text: [{"content": "fact about user", "category": "family|work|health|interests|other", "importance": 1-10}]
-Only include facts that would be meaningful to remember for future conversations.`,
-          messages: [{ role: "user", content: transcriptText }],
-        });
-
-        const rawText = memoryResponse.content[0].type === "text"
-          ? memoryResponse.content[0].text
-          : "[]";
-        const jsonMatch = rawText.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          memories = JSON.parse(jsonMatch[0]);
-        }
-      } catch (err) {
-        console.error("Memory extraction failed:", err);
+    // Also extract user messages as lightweight memories
+    if (transcript) {
+      const userMessages = transcript
+        .filter((t) => t.role === "user")
+        .map((t) => t.message)
+        .filter((msg) => msg.length > 20);
+      for (const msg of userMessages.slice(0, 3)) {
+        memories.push({ content: `User said: ${msg}`, category: "other", importance: 3 });
       }
-    } else if (!anthropic) {
-      console.warn("ANTHROPIC_API_KEY not set — skipping memory extraction");
     }
 
     // Update conversation record
